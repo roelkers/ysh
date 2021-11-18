@@ -3,9 +3,34 @@
 #include <string.h>
 #include <dirent.h> 
 #include <unistd.h>
+#include <stdbool.h>
 
 #define WORDBUFLENGTH 100
 #define MAXWORDS 50
+#define MAXPATHDIRS 50
+
+void splitPathIntoFolders(char* input, char * words[MAXWORDS]) {
+  int i = 0;
+  char c;
+  char * p;
+  words[i] = malloc(WORDBUFLENGTH);
+  p = words[i];
+  while((c = *input) != '\0') {
+    if(c == ':'){
+      *p = '\0';
+      //printf("found space %c\n", *p);
+      i++;
+      words[i] = malloc(WORDBUFLENGTH);
+      p = words[i];
+    } else {
+      *p = c;
+      //printf("found character %c\n", *p);
+      p++;
+    }
+    input++;
+  }
+  words[i] = '\0';
+}
 
 void splitIntoWords(char* input, char * words[MAXWORDS]) {
   int i = 0;
@@ -35,7 +60,7 @@ void executeCommand (char * binary_path) {
   // Argument Array
   char *const args[] = {binary_path, "-c", "echo \"Visit $HOSTNAME:$PORT from your browser.\"", NULL};
  // Environment Variable Array
-  char *const env[] = {"HOSTNAME=www.netflix.com", "PORT=80", NULL};
+  char *const env[] = {"", "", NULL};
  
   execve(binary_path, args, env);
 }
@@ -60,9 +85,23 @@ void findExecutable (char * command) {
     closedir(directory_reader);     
 }
 
+char * loadPathFromEnvironment() {
+  return getenv("PATH");
+}
+
+void parsePathEntries (char * pathString, char ** pathDirs) {
+  splitPathIntoFolders(pathString, pathDirs);
+}
+
 void handleUserInput (char * words[MAXWORDS]) {
   /* findExecutable(words[0]); */
-  findExecutable("fahrenheit");
+  //findExecutable("fahrenheit");
+  char * pathDirs [MAXPATHDIRS]; 
+  char * path = loadPathFromEnvironment();
+  parsePathEntries(path, pathDirs);
+  for(int i = 0; i < 4; i++) {
+    printf("path : %s\n", pathDirs[i]);
+  }
 }
 
 int main() {

@@ -9,8 +9,8 @@
 #define MAXWORDS 50
 #define MAXPATHDIRS 50
 
-void splitPathIntoFolders(char* input, char * words[MAXWORDS]) {
-  for(int j = 0; j < MAXWORDS -1; j++) {
+void splitStr(char* input, char * words[MAXWORDS], int wordsSize, char separator) {
+  for(int j = 0; j < wordsSize -1; j++) {
     words[j] = NULL;
   }
   int i = 0;
@@ -19,33 +19,7 @@ void splitPathIntoFolders(char* input, char * words[MAXWORDS]) {
   words[i] = malloc(WORDBUFLENGTH);
   p = words[i];
   while((c = *input) != '\0') {
-    if(c == ':'){
-      *p = '\0';
-      //printf("found space %c\n", *p);
-      i++;
-      words[i] = malloc(WORDBUFLENGTH);
-      p = words[i];
-    } else {
-      *p = c;
-      //printf("found character %c\n", *p);
-      p++;
-    }
-    input++;
-  }
-  words[i] = '\0';
-}
-
-void splitIntoWords(char* input, char * words[MAXWORDS]) {
-  for(int j = 0; j < MAXWORDS -1; j++) {
-    words[j] = NULL;
-  }
-  int i = 0;
-  char c;
-  char * p;
-  words[i] = malloc(WORDBUFLENGTH);
-  p = words[i];
-  while((c = *input) != '\0') {
-    if(c == ' '){
+    if(c == separator){
       *p = '\0';
       //printf("found space %c\n", *p);
       i++;
@@ -101,7 +75,7 @@ char * loadPathFromEnvironment() {
 }
 
 void parsePathEntries (char * pathString, char ** pathDirs) {
-  splitPathIntoFolders(pathString, pathDirs);
+  splitStr(pathString, pathDirs, MAXPATHDIRS, ':');
 }
 
 void handleUserInput (char * words[MAXWORDS]) {
@@ -127,7 +101,7 @@ int main() {
   while(1) {
     printf("#");
     scanf("%[^\n]%*c", input);
-    splitIntoWords(input, words);
+    splitStr(input, words, MAXWORDS, ' ');
     handleUserInput(words);
   }
 }

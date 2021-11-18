@@ -10,6 +10,9 @@
 #define MAXPATHDIRS 50
 
 void splitPathIntoFolders(char* input, char * words[MAXWORDS]) {
+  for(int j = 0; j < MAXWORDS -1; j++) {
+    words[j] = NULL;
+  }
   int i = 0;
   char c;
   char * p;
@@ -33,6 +36,9 @@ void splitPathIntoFolders(char* input, char * words[MAXWORDS]) {
 }
 
 void splitIntoWords(char* input, char * words[MAXWORDS]) {
+  for(int j = 0; j < MAXWORDS -1; j++) {
+    words[j] = NULL;
+  }
   int i = 0;
   char c;
   char * p;
@@ -108,7 +114,11 @@ void handleUserInput (char * words[MAXWORDS]) {
   /* } */
   /* printf("%s\n", words[0]); */
   /* printf("%s\n", pathDirs[4]); */
-  findExecutable(words[0], pathDirs[4]); 
+  for(int i = 0; i < MAXPATHDIRS -1; i++) {
+    if(pathDirs[i] != NULL) {
+      findExecutable(words[0], pathDirs[i]); 
+    }
+  }
 }
 
 int main() {

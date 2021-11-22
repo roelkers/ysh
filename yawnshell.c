@@ -10,6 +10,11 @@
 #define MAXWORDS 50
 #define MAXPATHDIRS 50
 
+typedef struct executableWithArgs {
+  char * executable;
+  char * args[MAXWORDS]; 
+} executableWithArgs;
+
 void splitStr(char* input, char * words[MAXWORDS], int wordsSize, char separator) {
   for(int j = 0; j < wordsSize -1; j++) {
     words[j] = NULL;
@@ -31,14 +36,14 @@ void splitStr(char* input, char * words[MAXWORDS], int wordsSize, char separator
     }
     input++;
   }
-  words[i] = '\0';
+  p = '\0';
 }
 
 
-void executeCommand (char * binary_path) {
+void executeCommand (char * binary_path, executableWithArgs command) {
   int pid = 0;
   // Argument Array
-  char *const args[] = {"", NULL};
+  /* char *const args[] = {"", NULL}; */
  // Environment Variable Array
   char *const env[] = {"", "", NULL};
   int returnStatus = 0;
@@ -50,7 +55,7 @@ void executeCommand (char * binary_path) {
   }
   //only executes in child process
   if(pid == 0) { 
-    execve(binary_path, args, env);
+    execve(binary_path, command.args, env);
     perror("execve");
   } 
   waitpid(pid, &returnStatus, 0);
@@ -59,7 +64,7 @@ void executeCommand (char * binary_path) {
   }
 }
 
-bool findExecutable (char * command, char * dir) {
+bool findExecutable (executableWithArgs command, char * dir) {
     struct dirent *directory;
     DIR *directory_reader = opendir(dir); 
   
@@ -68,10 +73,10 @@ bool findExecutable (char * command, char * dir) {
         exit(0);
     }
     while ((directory= readdir(directory_reader)) != NULL) {
-      if(strcmp(directory->d_name, command) == 0) {
+      if(strcmp(directory->d_name, command.executable) == 0) {
         char * absolute_exec_path = malloc(sizeof(dir) + sizeof(directory->d_name));
         absolute_exec_path = strcat(strcat(dir, "/"), directory->d_name);
-        executeCommand(absolute_exec_path);
+        executeCommand(absolute_exec_path, command);
         return true;
       }
     }
@@ -86,13 +91,25 @@ void parsePathEntries (char * pathString, char ** pathDirs) {
   splitStr(pathString, pathDirs, MAXPATHDIRS, ':');
 }
 
+void getExecutables(char * words[MAXWORDS], executableWithArgs executables[MAXWORDS]) {
+  executables[0].executable = words[0];
+  for(int i = 0; i < MAXWORDS-1; i++) {
+    if(words[i] != NULL) {
+      executables[0].args[i] = words[i];
+    }
+  }
+} 
+
 void handleUserInput (char * words[MAXWORDS]) {
+  struct executableWithArgs executables[MAXWORDS];
   char * pathDirs [MAXPATHDIRS]; 
   char * path = loadPathFromEnvironment();
   parsePathEntries(path, pathDirs);
+  getExecutables(words, executables);
+
   for(int i = 0; i < MAXPATHDIRS -1; i++) {
     if(pathDirs[i] != NULL) {
-      bool found = findExecutable(words[0], pathDirs[i]); 
+      bool found = findExecutable(executables[0], pathDirs[i]); 
       if(found) {
         return;
       }

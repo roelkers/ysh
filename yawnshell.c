@@ -76,7 +76,9 @@ bool findExecutable (executableWithArgs command, char * dir) {
     while ((directory= readdir(directory_reader)) != NULL) {
       if(strcmp(directory->d_name, command.executable) == 0) {
         char * absolute_exec_path = malloc(sizeof(dir) + sizeof(directory->d_name));
-        absolute_exec_path = strcat(strcat(dir, "/"), directory->d_name);
+        strcat(absolute_exec_path, dir);
+        strcat(absolute_exec_path, "/");
+        strcat(absolute_exec_path, directory->d_name);
         executeCommand(absolute_exec_path, command);
         return true;
       }

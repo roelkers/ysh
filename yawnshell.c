@@ -4,6 +4,7 @@
 #include <dirent.h> 
 #include <unistd.h>
 #include <stdbool.h>
+#include <sys/wait.h>
 
 #define WORDBUFLENGTH 100
 #define MAXWORDS 50
@@ -21,13 +22,11 @@ void splitStr(char* input, char * words[MAXWORDS], int wordsSize, char separator
   while((c = *input) != '\0') {
     if(c == separator){
       *p = '\0';
-      //printf("found space %c\n", *p);
       i++;
       words[i] = malloc(WORDBUFLENGTH);
       p = words[i];
     } else {
       *p = c;
-      //printf("found character %c\n", *p);
       p++;
     }
     input++;
@@ -37,21 +36,30 @@ void splitStr(char* input, char * words[MAXWORDS], int wordsSize, char separator
 
 
 void executeCommand (char * binary_path) {
+  int pid = 0;
   // Argument Array
   char *const args[] = {"", NULL};
  // Environment Variable Array
   char *const env[] = {"", "", NULL};
- 
-  int res = execve(binary_path, args, env);
-  perror("execve");
-  if(res == 0) {
-    printf("executed %s successfully", binary_path);
-  } else {
-    printf("%s exited with error code %i", binary_path, res);
+  int returnStatus = 0;
+
+  pid = fork();
+  if(pid < 0) {
+    perror("Unable to create child process");
+    exit(1);
+  }
+  //only executes in child process
+  if(pid == 0) { 
+    execve(binary_path, args, env);
+    perror("execve");
+  } 
+  waitpid(pid, &returnStatus, 0);
+  if(returnStatus != 0) {
+    printf("%s exited with error code %i\n", binary_path, returnStatus);
   }
 }
 
-void findExecutable (char * command, char * dir) {
+bool findExecutable (char * command, char * dir) {
     struct dirent *directory;
     DIR *directory_reader = opendir(dir); 
   
@@ -64,7 +72,7 @@ void findExecutable (char * command, char * dir) {
         char * absolute_exec_path = malloc(sizeof(dir) + sizeof(directory->d_name));
         absolute_exec_path = strcat(strcat(dir, "/"), directory->d_name);
         executeCommand(absolute_exec_path);
-        return;
+        return true;
       }
     }
     closedir(directory_reader);     
@@ -79,18 +87,15 @@ void parsePathEntries (char * pathString, char ** pathDirs) {
 }
 
 void handleUserInput (char * words[MAXWORDS]) {
-  //findExecutable("fahrenheit");
   char * pathDirs [MAXPATHDIRS]; 
   char * path = loadPathFromEnvironment();
   parsePathEntries(path, pathDirs);
-  /* for(int i = 0; i < 6; i++) { */
-  /*   printf("path : %s\n", pathDirs[i]); */
-  /* } */
-  /* printf("%s\n", words[0]); */
-  /* printf("%s\n", pathDirs[4]); */
   for(int i = 0; i < MAXPATHDIRS -1; i++) {
     if(pathDirs[i] != NULL) {
-      findExecutable(words[0], pathDirs[i]); 
+      bool found = findExecutable(words[0], pathDirs[i]); 
+      if(found) {
+        return;
+      }
     }
   }
 }

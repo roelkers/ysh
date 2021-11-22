@@ -9,6 +9,7 @@
 #define WORDBUFLENGTH 100
 #define MAXWORDS 50
 #define MAXPATHDIRS 50
+#define CUSTOMPATH "./bin"
 
 typedef struct executableWithArgs {
   char * executable;
@@ -84,11 +85,30 @@ bool findExecutable (executableWithArgs command, char * dir) {
 }
 
 char * loadPathFromEnvironment() {
-  return getenv("PATH");
+  char* pathStr = getenv("PATH");
+  char * newPath = malloc(strlen(pathStr) + strlen(CUSTOMPATH)+1); 
+  strcat(newPath, CUSTOMPATH); 
+  strcat(newPath, ":"); 
+  strcat(newPath, pathStr); 
+  return newPath;
 }
 
 void parsePathEntries (char * pathString, char ** pathDirs) {
   splitStr(pathString, pathDirs, MAXPATHDIRS, ':');
+}
+
+void findExecutableInPath(executableWithArgs executables[MAXWORDS]) {
+  char * pathDirs [MAXPATHDIRS]; 
+  char * path = loadPathFromEnvironment();
+  parsePathEntries(path, pathDirs);
+  for(int i = 0; i < MAXPATHDIRS -1; i++) {
+    if(pathDirs[i] != NULL) {
+      bool found = findExecutable(executables[0], pathDirs[i]); 
+      if(found) {
+        return;
+      }
+    }
+  }
 }
 
 void getExecutables(char * words[MAXWORDS], executableWithArgs executables[MAXWORDS]) {
@@ -102,19 +122,8 @@ void getExecutables(char * words[MAXWORDS], executableWithArgs executables[MAXWO
 
 void handleUserInput (char * words[MAXWORDS]) {
   struct executableWithArgs executables[MAXWORDS];
-  char * pathDirs [MAXPATHDIRS]; 
-  char * path = loadPathFromEnvironment();
-  parsePathEntries(path, pathDirs);
   getExecutables(words, executables);
-
-  for(int i = 0; i < MAXPATHDIRS -1; i++) {
-    if(pathDirs[i] != NULL) {
-      bool found = findExecutable(executables[0], pathDirs[i]); 
-      if(found) {
-        return;
-      }
-    }
-  }
+  findExecutableInPath(executables);
 }
 
 int main() {

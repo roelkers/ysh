@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <sys/wait.h>
+#include <fcntl.h>
+
 
 #define WORDBUFLENGTH 100
 #define MAXWORDS 50
@@ -12,6 +14,8 @@
 #define CUSTOMPATH "./bin"
 
 int outFds[2];
+int fileFd;
+int saved_stdout;
 
 typedef struct executableWithArgs {
   char * executable;
@@ -119,26 +123,54 @@ void findExecutableInPath(executableWithArgs executables[MAXWORDS]) {
   }
 }
 
+void redirectOutputToFile(char * filePath){
+  fileFd = open(filePath, O_WRONLY); 
+  if(fileFd < 0) {
+    perror("fopen");
+    exit(1);
+  }
+  /* pipe(outFds); */
+  /* close(STDOUT_FILENO); */
+  int dup2status = dup2(fileFd, STDOUT_FILENO);
+  if(dup2status < 0) {
+    perror("dup2");
+    exit(1);
+  }
+  /* dup2(outFds[0], STDOUT_FILENO); */
+}
+
 void getExecutables(char * words[MAXWORDS], executableWithArgs executables[MAXWORDS]) {
   bool inputRedirectionToggled = false;
+  bool outputRedirectionToggled = false;
   executables[0].executable = words[0];
   for(int i = 0; i < MAXWORDS-1; i++) {
     if(words[i] != NULL) {
-      if(*words[i] == '<') {
-        /* pipe(outFds); */
-        /* close(STDOUT_FILENO); */
-        /* dup2(outFds[0], STDOUT_FILENO); */
-        if(inputRedirectionToggled) {
-          printf("Error: Double < redirection\n");
-          exit(1);
-        }
-        inputRedirectionToggled = true;
-        if(words[i+1] != NULL) {
-          executables[0].args[i] = words[i+1];
-        }
-        return;
-      } else {
-        executables[0].args[i] = words[i];
+      switch(*words[i]) {
+        case('<'):
+          if(inputRedirectionToggled) {
+            printf("Error: Double < redirection\n");
+            exit(1);
+          }
+          inputRedirectionToggled = true;
+          if(words[i+1] != NULL) {
+            executables[0].args[i] = words[i+1];
+          }
+          return;
+        case('>'):
+          if(outputRedirectionToggled) {
+            printf("Error: Double > redirection\n");
+            exit(1);
+          }
+          outputRedirectionToggled = true;
+          if(words[i+1] == NULL) {
+            printf("No file for redirecting output given.");
+            exit(1);
+          }
+          redirectOutputToFile(words[i+1]);
+          break;
+        default: 
+          executables[0].args[i] = words[i];
+          break;
       }
     }
     else {
@@ -147,15 +179,28 @@ void getExecutables(char * words[MAXWORDS], executableWithArgs executables[MAXWO
   }
 } 
 
+void cleanup () {
+  if(fileFd) {
+    close(fileFd);
+    int dup2status = dup2(saved_stdout, STDOUT_FILENO);
+    if(dup2status < 0) {
+      perror("error restoring stdout.");
+      exit(1);
+    }
+  }
+}
+
 void handleUserInput (char * words[MAXWORDS]) {
   struct executableWithArgs executables[MAXWORDS];
   getExecutables(words, executables);
   findExecutableInPath(executables);
+  cleanup();
 }
 
 int main() {
   char input[MAXWORDS];
   char * words[MAXWORDS];
+  saved_stdout = dup(STDOUT_FILENO);
   while(1) {
     printf("#");
     scanf("%[^\n]%*c", input);

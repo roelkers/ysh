@@ -11,6 +11,8 @@
 #define MAXPATHDIRS 50
 #define CUSTOMPATH "./bin"
 
+int outFds[2];
+
 typedef struct executableWithArgs {
   char * executable;
   char * args[MAXWORDS]; 
@@ -49,6 +51,10 @@ void executeCommand (char * binary_path, executableWithArgs command) {
   char *const env[] = {"", "", NULL};
   int returnStatus = 0;
 
+  /* printf("executableWithArgs.args[1]:%s\n",command.args[0]); */
+  /* printf("executableWithArgs.args[1]:%s\n",command.args[1]); */
+  /* printf("executableWithArgs.args[2]:%s\n",command.args[2]); */
+  /* printf("executableWithArgs.args[3]:%s\n",command.args[3]); */
   pid = fork();
   if(pid < 0) {
     perror("Unable to create child process");
@@ -114,11 +120,30 @@ void findExecutableInPath(executableWithArgs executables[MAXWORDS]) {
 }
 
 void getExecutables(char * words[MAXWORDS], executableWithArgs executables[MAXWORDS]) {
+  bool inputRedirectionToggled = false;
   executables[0].executable = words[0];
   for(int i = 0; i < MAXWORDS-1; i++) {
     if(words[i] != NULL) {
-      executables[0].args[i] = words[i];
+      if(*words[i] == '<') {
+        /* pipe(outFds); */
+        /* close(STDOUT_FILENO); */
+        /* dup2(outFds[0], STDOUT_FILENO); */
+        if(inputRedirectionToggled) {
+          printf("Error: Double < redirection\n");
+          exit(1);
+        }
+        inputRedirectionToggled = true;
+        if(words[i+1] != NULL) {
+          executables[0].args[i] = words[i+1];
+        }
+        return;
+      } else {
+        executables[0].args[i] = words[i];
+      }
     }
+    else {
+      executables[0].args[i] = NULL;
+    } 
   }
 } 
 

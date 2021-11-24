@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 
 
@@ -16,6 +17,14 @@
 int outFds[2];
 int fileFd;
 int saved_stdout;
+
+bool doesFileExist(const char * path) {
+  struct stat statbuf;
+  if (stat(path, &statbuf) != 0) {
+    return false;
+  }
+  return true;
+}
 
 typedef struct executableWithArgs {
   char * executable;
@@ -123,20 +132,25 @@ void findExecutableInPath(executableWithArgs executables[MAXWORDS]) {
   }
 }
 
+/* pipe(outFds); */
+/* close(STDOUT_FILENO); */
+/* dup2(outFds[0], STDOUT_FILENO); */
+
 void redirectOutputToFile(char * filePath){
-  fileFd = open(filePath, O_WRONLY); 
+  if(doesFileExist(filePath)) {
+    printf("%s: file exists.\n", filePath);
+    exit(1);
+  }
+  fileFd = open(filePath, O_CREAT | O_WRONLY); 
   if(fileFd < 0) {
     perror("fopen");
     exit(1);
   }
-  /* pipe(outFds); */
-  /* close(STDOUT_FILENO); */
   int dup2status = dup2(fileFd, STDOUT_FILENO);
   if(dup2status < 0) {
     perror("dup2");
     exit(1);
   }
-  /* dup2(outFds[0], STDOUT_FILENO); */
 }
 
 void getExecutables(char * words[MAXWORDS], executableWithArgs executables[MAXWORDS]) {
@@ -181,7 +195,14 @@ void getExecutables(char * words[MAXWORDS], executableWithArgs executables[MAXWO
 
 void cleanup () {
   if(fileFd) {
+    //set permissions
+    int fchmodstatus = fchmod(fileFd, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    if(fchmodstatus != 0) {
+      perror("fchmod");
+    }
+    //close file
     close(fileFd);
+    //reattach stdout
     int dup2status = dup2(saved_stdout, STDOUT_FILENO);
     if(dup2status < 0) {
       perror("error restoring stdout.");

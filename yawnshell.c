@@ -13,10 +13,12 @@
 #define MAXWORDS 50
 #define MAXPATHDIRS 50
 #define CUSTOMPATH "./bin"
+#define MAXCOMMANDLENGTH 10
 
 int outFds[2];
 int fileFd;
 int saved_stdout;
+
 
 bool doesFileExist(const char * path) {
   struct stat statbuf;
@@ -29,7 +31,10 @@ bool doesFileExist(const char * path) {
 typedef struct executableWithArgs {
   char * executable;
   char * args[MAXWORDS]; 
+  char * binary_path;
 } executableWithArgs;
+
+void executeCommand (executableWithArgs);
 
 void splitStr(char* input, char * words[MAXWORDS], int wordsSize, char separator) {
   for(int j = 0; j < wordsSize -1; j++) {
@@ -55,11 +60,12 @@ void splitStr(char* input, char * words[MAXWORDS], int wordsSize, char separator
   p = '\0';
 }
 
+void executeCommandChain (executableWithArgs commands[MAXCOMMANDLENGTH]) {
+  executeCommand(commands[0]);
+}
 
-void executeCommand (char * binary_path, executableWithArgs command) {
+void executeCommand (executableWithArgs command) {
   int pid = 0;
-  // Argument Array
-  /* char *const args[] = {"", NULL}; */
  // Environment Variable Array
   char *const env[] = {"", "", NULL};
   int returnStatus = 0;
@@ -75,16 +81,16 @@ void executeCommand (char * binary_path, executableWithArgs command) {
   }
   //only executes in child process
   if(pid == 0) { 
-    execve(binary_path, command.args, env);
+    execve(command.binary_path, command.args, env);
     perror("execve");
   } 
   waitpid(pid, &returnStatus, 0);
   if(returnStatus != 0) {
-    printf("%s exited with error code %i\n", binary_path, returnStatus);
+    printf("%s exited with error code %i\n", command.binary_path, returnStatus);
   }
 }
 
-bool findExecutable (executableWithArgs command, char * dir) {
+bool findExecutable (executableWithArgs* command, char * dir) {
     struct dirent *directory;
     DIR *directory_reader = opendir(dir); 
   
@@ -93,12 +99,12 @@ bool findExecutable (executableWithArgs command, char * dir) {
         exit(0);
     }
     while ((directory= readdir(directory_reader)) != NULL) {
-      if(strcmp(directory->d_name, command.executable) == 0) {
+      if(strcmp(directory->d_name, command->executable) == 0) {
         char * absolute_exec_path = malloc(sizeof(dir) + sizeof(directory->d_name));
         strcat(absolute_exec_path, dir);
         strcat(absolute_exec_path, "/");
         strcat(absolute_exec_path, directory->d_name);
-        executeCommand(absolute_exec_path, command);
+        command->binary_path = absolute_exec_path;
         return true;
       }
     }
@@ -124,7 +130,7 @@ void findExecutableInPath(executableWithArgs executables[MAXWORDS]) {
   parsePathEntries(path, pathDirs);
   for(int i = 0; i < MAXPATHDIRS -1; i++) {
     if(pathDirs[i] != NULL) {
-      bool found = findExecutable(executables[0], pathDirs[i]); 
+      bool found = findExecutable(&executables[0], pathDirs[i]); 
       if(found) {
         return;
       }
@@ -154,9 +160,11 @@ void redirectOutputToFile(char * filePath){
 }
 
 void getExecutables(char * words[MAXWORDS], executableWithArgs executables[MAXWORDS]) {
+  int j = 0; // executable index
+  int k  = 0; // arg index
   bool inputRedirectionToggled = false;
   bool outputRedirectionToggled = false;
-  executables[0].executable = words[0];
+  executables[j].executable = words[0];
   for(int i = 0; i < MAXWORDS-1; i++) {
     if(words[i] != NULL) {
       switch(*words[i]) {
@@ -167,7 +175,7 @@ void getExecutables(char * words[MAXWORDS], executableWithArgs executables[MAXWO
           }
           inputRedirectionToggled = true;
           if(words[i+1] != NULL) {
-            executables[0].args[i] = words[i+1];
+            executables[j].args[k] = words[i+1];
           }
           return;
         case('>'):
@@ -181,9 +189,16 @@ void getExecutables(char * words[MAXWORDS], executableWithArgs executables[MAXWO
             exit(1);
           }
           redirectOutputToFile(words[i+1]);
+          k++;
+          break;
+        case('|'):
+          j++; // increase executable index 
+          executables[j].executable = words[i]; //write next executable 
+          k = 0; // reset arg index
           break;
         default: 
-          executables[0].args[i] = words[i];
+          executables[j].args[k] = words[i];
+          k++;
           break;
       }
     }
@@ -215,6 +230,7 @@ void handleUserInput (char * words[MAXWORDS]) {
   struct executableWithArgs executables[MAXWORDS];
   getExecutables(words, executables);
   findExecutableInPath(executables);
+  executeCommandChain(executables);
   cleanup();
 }
 

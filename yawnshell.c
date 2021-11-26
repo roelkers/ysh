@@ -182,6 +182,7 @@ void getExecutables(char * words[MAXWORDS]) {
   bool outputRedirectionToggled = false;
   allocExecutable(&commands[j]);
   commands[j].executable = words[0];
+  commands[j].args[0] = malloc(WORDBUFLENGTH); 
   commands[j].args[0] = words[0];
   for(int i = 1; i < MAXWORDS-1; i++) {
     if(words[i] != NULL) {
@@ -218,13 +219,15 @@ void getExecutables(char * words[MAXWORDS]) {
           k = 1; // reset arg index
           break;
         default: 
+          commands[j].args[k] = malloc(WORDBUFLENGTH); 
           commands[j].args[k] = words[i];
           k++;
           break;
       }
     }
     else {
-      commands[0].args[i] = NULL;
+      commands[j].args[k] = malloc(WORDBUFLENGTH); 
+      commands[0].args[k] = NULL;
     } 
   }
 } 
@@ -247,10 +250,21 @@ void cleanup () {
   }
 }
 
+void resetCommands() {
+  for(int i = 0; i< MAXCOMMANDLENGTH; i++) {
+    for(int j = 0; j < MAXWORDS; j++) {
+      commands[i].args[j] = '\0'; 
+    }
+    commands[i].binary_path = '\0';
+    commands[i].executable = '\0';
+  }
+}
+
 void handleUserInput (char * words[MAXWORDS]) {
   getExecutables(words);
   findExecutablesInPath();
   executeCommandChain();
+  resetCommands();
   cleanup();
 }
 

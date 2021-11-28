@@ -38,19 +38,15 @@ void executeCommand (struct executableWithArgs);
 void splitStr(char* input, char * words[MAXWORDS], int wordsSize, char separator) {
   for(int j = 0; j < wordsSize -1; j++) {
     *words[j] = '\0';
-    /* memset(words[j], 0, WORDBUFLENGTH); */ 
-    /* words[j] = NULL; */
   }
   int i = 0;
   char c;
   char * p;
-  //words[i] = malloc(WORDBUFLENGTH);
   p = words[i];
   while((c = *input) != '\0') {
     if(c == separator){
       *p = '\0';
       i++;
-      //words[i] = malloc(WORDBUFLENGTH);
       p = words[i];
     } else {
       *p = c;
@@ -60,12 +56,6 @@ void splitStr(char* input, char * words[MAXWORDS], int wordsSize, char separator
   }
   *p = '\0';
 }
-
-/* char ** getWords(char input[MAXWORDS]) { */
-/*   char * words = kj */
-/*   splitStr(input, words, MAXWORDS, ' '); */
-/*   return words; */
-/* } */
 
 void executeCommandChain (struct executableWithArgs * command) {
   struct executableWithArgs * currentCommand;
@@ -157,18 +147,11 @@ void findExecutablesInPath(struct executableWithArgs *command) {
     for(int i = 0; i < MAXPATHDIRS; i++) {
       if(*pathDirs[i] != '\0' && command->executable != NULL) {
         findExecutable(command, pathDirs[i]); 
-        /* found = findExecutable(&command, pathDirs[i]); */ 
       }
     }
-    /* printf("%s\n", command->next); */
     currentCommand = currentCommand->next;
   }
-  /* printf("%s", command->binary_path); */
 }
-
-/* pipe(outFds); */
-/* close(STDOUT_FILENO); */
-/* dup2(outFds[0], STDOUT_FILENO); */
 
 void redirectOutputToFile(char * filePath){
   if(doesFileExist(filePath)) {
@@ -188,13 +171,7 @@ void redirectOutputToFile(char * filePath){
 }
 
 void allocExecutable(struct executableWithArgs * command) {
-  /* command->next = NULL; */
   command = (struct executableWithArgs*) malloc(sizeof(struct executableWithArgs));
-  /* command->executable = malloc(WORDBUFLENGTH); */
-  /* command->binary_path = malloc(WORDBUFLENGTH); */
-  /* for(int i = 0; i< MAXWORDS; i++) { */
-  /*   command->args[i] = malloc(WORDBUFLENGTH); */
-  /* } */
 }
 
 void getExecutables(char * words[MAXWORDS], struct executableWithArgs *command) {
@@ -248,7 +225,6 @@ void getExecutables(char * words[MAXWORDS], struct executableWithArgs *command) 
       }
     }
     else {
-      /* command.args[k] = malloc(WORDBUFLENGTH); */ 
       command->args[k] = NULL;
     } 
   }
@@ -271,20 +247,6 @@ void cleanup () {
     }
   }
 }
-
-/* void resetCommands() { */
-/*   struct executableWithArgs * currentCommand; */
-/*   currentCommand = command; */
-
-/*   while(currentCommand != NULL) { */
-/*     currentCommand->next */
-/*     for(int j = 0; j < MAXWORDS; j++) { */
-/*       commands[i].args[j] = '\0'; */ 
-/*     } */
-/*     commands[i].binary_path = '\0'; */
-/*     commands[i].executable = '\0'; */
-/*   } */
-/* } */
 
 void handleUserInput (char * words[MAXWORDS]) {
   struct executableWithArgs command;

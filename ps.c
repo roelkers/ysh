@@ -32,7 +32,7 @@ void splitStr(char* input, char * words[MAXWORDS], int wordsSize, char separator
     }
     input++;
   }
-  p = '\0';
+  *p = '\0';
 }
 
 int isDirectory(const char * path) {

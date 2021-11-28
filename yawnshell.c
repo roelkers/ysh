@@ -34,6 +34,7 @@ int fileFd;
 int saved_stdout;
 
 void executeCommand (struct executableWithArgs);
+void freeExecutable(struct executableWithArgs *);
 
 void splitStr(char* input, char * words[MAXWORDS], int wordsSize, char separator) {
   for(int j = 0; j < wordsSize -1; j++) {
@@ -248,12 +249,26 @@ void cleanup () {
   }
 }
 
+void freeExecutable(struct executableWithArgs * command) {
+   if(command->next != NULL) {
+      freeExecutable(command);
+   }
+   free(command->binary_path); 
+   free(command->executable);
+   int k = 0;
+   while(command->args[k] != NULL) {
+     free(command->args[k]);
+     k++;
+   }
+}
+
 void handleUserInput (char * words[MAXWORDS]) {
   struct executableWithArgs command;
   getExecutables(words, &command);
   
   findExecutablesInPath(&command);
   executeCommandChain(&command);
+  freeExecutable(&command);
   cleanup();
 }
 

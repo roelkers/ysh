@@ -23,18 +23,18 @@ bool doesFileExist(const char * path) {
   return true;
 }
 
-typedef struct executableWithArgs {
+struct executableWithArgs {
   char * executable;
   char * args[MAXWORDS]; 
   char * binary_path;
-} executableWithArgs;
+  struct executableWithArgs * next;
+};
 
-executableWithArgs commands[MAXCOMMANDLENGTH];
 int outFds[2];
 int fileFd;
 int saved_stdout;
 
-void executeCommand (executableWithArgs);
+void executeCommand (struct executableWithArgs);
 
 void splitStr(char* input, char * words[MAXWORDS], int wordsSize, char separator) {
   for(int j = 0; j < wordsSize -1; j++) {
@@ -60,17 +60,17 @@ void splitStr(char* input, char * words[MAXWORDS], int wordsSize, char separator
   p = '\0';
 }
 
-void executeCommandChain () {
-  for(int j = 0; j< MAXCOMMANDLENGTH; j++) {
-    printf("executing command %s\n", commands[j].executable);
-    printf("binary path %s\n", commands[j].binary_path);
-    if(commands[j].binary_path != NULL) {
-      executeCommand(commands[j]);
-    }
-  }
-}
+/* void executeCommandChain () { */
+/*   for(int j = 0; j< MAXCOMMANDLENGTH; j++) { */
+/*     printf("executing command %s\n", command.executable); */
+/*     printf("binary path %s\n", command.binary_path); */
+/*     if(command.binary_path != NULL) { */
+/*       executeCommand(command); */
+/*     } */
+/*   } */
+/* } */
 
-void executeCommand (executableWithArgs command) {
+void executeCommand (struct executableWithArgs command) {
   int pid = 0;
  // Environment Variable Array
   char *const env[] = {"", "", NULL};
@@ -96,7 +96,7 @@ void executeCommand (executableWithArgs command) {
   }
 }
 
-bool findExecutable (executableWithArgs* command, char * dir) {
+bool findExecutable (struct executableWithArgs* command, char * dir) {
     struct dirent *directory;
     DIR *directory_reader = opendir(dir); 
   
@@ -130,23 +130,25 @@ void parsePathEntries (char * pathString, char ** pathDirs) {
   splitStr(pathString, pathDirs, MAXPATHDIRS, ':');
 }
 
-void findExecutablesInPath() {
+void findExecutablesInPath(struct executableWithArgs *command) {
   char * pathDirs [MAXPATHDIRS]; 
   char * path = loadPathFromEnvironment();
   parsePathEntries(path, pathDirs);
   bool found;
-    
-  for(int j = 0; j< MAXCOMMANDLENGTH; j++) {
+  struct executableWithArgs * currentCommand;
+  currentCommand = command;
+
+  while(currentCommand != NULL) {
     for(int i = 0; i < MAXPATHDIRS -1; i++) {
-      if(pathDirs[i] != NULL && commands[j].executable != NULL) {
-        findExecutable(&commands[j], pathDirs[i]); 
-        /* found = findExecutable(&commands[j], pathDirs[i]); */ 
+      if(pathDirs[i] != NULL && command->executable != NULL) {
+        findExecutable(command, pathDirs[i]); 
+        /* found = findExecutable(&command, pathDirs[i]); */ 
       }
     }
-        /* if(found) { */
-        /*   return; */
-        /* } */
+    /* printf("%s\n", command->next); */
+    currentCommand = currentCommand->next;
   }
+  /* printf("%s", command->binary_path); */
 }
 
 /* pipe(outFds); */
@@ -170,20 +172,22 @@ void redirectOutputToFile(char * filePath){
   }
 }
 
-void allocExecutable(executableWithArgs * command) {
-  command->executable = malloc(WORDBUFLENGTH);
-  command->binary_path = malloc(WORDBUFLENGTH);
+void allocExecutable(struct executableWithArgs * command) {
+  /* command->executable = malloc(WORDBUFLENGTH); */
+  /* command->binary_path = malloc(WORDBUFLENGTH); */
+  /* command->next = NULL; */
+  command = (struct executableWithArgs*) malloc(sizeof(struct executableWithArgs));
 }
 
-void getExecutables(char * words[MAXWORDS]) {
-  int j = 0; // executable index
+void getExecutables(char * words[MAXWORDS], struct executableWithArgs *command) {
+  struct executableWithArgs * currentCommand = command;
   int k  = 1; // arg index
   bool inputRedirectionToggled = false;
   bool outputRedirectionToggled = false;
-  allocExecutable(&commands[j]);
-  commands[j].executable = words[0];
-  commands[j].args[0] = malloc(WORDBUFLENGTH); 
-  commands[j].args[0] = words[0];
+  allocExecutable(command);
+  currentCommand->executable = strdup(words[0]);
+  currentCommand->args[0] = strdup(words[0]);
+  command->next = NULL; 
   for(int i = 1; i < MAXWORDS-1; i++) {
     if(words[i] != NULL) {
       switch(*words[i]) {
@@ -194,7 +198,7 @@ void getExecutables(char * words[MAXWORDS]) {
           }
           inputRedirectionToggled = true;
           if(words[i+1] != NULL) {
-            commands[j].args[k] = words[i+1];
+            command->args[k] = words[i+1];
           }
           return;
         case('>'):
@@ -211,23 +215,23 @@ void getExecutables(char * words[MAXWORDS]) {
           k++;
           break;
         case('|'):
-          j++; // increase executable index 
           i++; // skip word
-          allocExecutable(&commands[j]); // allocate memory for new struct member
-          commands[j].executable = words[i]; //write next executable 
-          commands[j].args[0] = words[i];
+          allocExecutable(command->next); 
+          currentCommand = command->next;
+          command->executable = strdup(words[i]); //write next executable 
+          command->args[0] = strdup(words[i]);
+          command->next = NULL; 
           k = 1; // reset arg index
           break;
         default: 
-          commands[j].args[k] = malloc(WORDBUFLENGTH); 
-          commands[j].args[k] = words[i];
+          command->args[k] = strdup(words[i]);
           k++;
           break;
       }
     }
     else {
-      commands[j].args[k] = malloc(WORDBUFLENGTH); 
-      commands[0].args[k] = NULL;
+      /* command.args[k] = malloc(WORDBUFLENGTH); */ 
+      command->args[k] = NULL;
     } 
   }
 } 
@@ -250,21 +254,21 @@ void cleanup () {
   }
 }
 
-void resetCommands() {
-  for(int i = 0; i< MAXCOMMANDLENGTH; i++) {
-    for(int j = 0; j < MAXWORDS; j++) {
-      commands[i].args[j] = '\0'; 
-    }
-    commands[i].binary_path = '\0';
-    commands[i].executable = '\0';
-  }
-}
+/* void resetCommands() { */
+/*   for(int i = 0; i< MAXCOMMANDLENGTH; i++) { */
+/*     for(int j = 0; j < MAXWORDS; j++) { */
+/*       commands[i].args[j] = '\0'; */ 
+/*     } */
+/*     commands[i].binary_path = '\0'; */
+/*     commands[i].executable = '\0'; */
+/*   } */
+/* } */
 
 void handleUserInput (char * words[MAXWORDS]) {
-  getExecutables(words);
-  findExecutablesInPath();
-  executeCommandChain();
-  resetCommands();
+  struct executableWithArgs command;
+  getExecutables(words, &command);
+  findExecutablesInPath(&command);
+  /* executeCommandChain(&command); */
   cleanup();
 }
 

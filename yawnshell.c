@@ -63,8 +63,8 @@ void executeCommandChain (struct executableWithArgs * command) {
   currentCommand = command;
 
   while(currentCommand != NULL) {
-    printf("executing command %s\n", command->executable);
-    printf("binary path %s\n", command->binary_path);
+    /* printf("executing command %s\n", command->executable); */
+    /* printf("binary path %s\n", command->binary_path); */
     if(command->binary_path != NULL) {
       executeCommand(*command);
     }
@@ -77,7 +77,7 @@ void executeCommand (struct executableWithArgs command) {
  // Environment Variable Array
   char *const env[] = {"", "", NULL};
   int returnStatus = 0;
-
+  /* printf("command.binary_path: %s\n", command.binary_path); */
   /* printf("executableWithArgs.args[0]:%s\n",command.args[0]); */
   /* printf("executableWithArgs.args[1]:%s\n",command.args[1]); */
   /* printf("executableWithArgs.args[2]:%s\n",command.args[2]); */
@@ -98,23 +98,24 @@ void executeCommand (struct executableWithArgs command) {
   }
 }
 
-bool findExecutable (struct executableWithArgs* command, char * dir) {
+void findExecutable (struct executableWithArgs* command, char * dir) {
     printf("dir: %s\n", dir);
+    /* printf("command: %s\n", command->executable); */
     struct dirent *directory;
     DIR *directory_reader = opendir(dir); 
   
     if (directory_reader == NULL) {
+        perror("opendir");
         printf("Could not open current directory" ); 
         exit(0);
     }
     while ((directory= readdir(directory_reader)) != NULL) {
       if(strcmp(directory->d_name, command->executable) == 0) {
-        char * absolute_exec_path = malloc(sizeof(dir) + sizeof(directory->d_name));
+        char * absolute_exec_path = malloc(strlen(dir) + strlen(directory->d_name)+1);
         strcat(absolute_exec_path, dir);
         strcat(absolute_exec_path, "/");
         strcat(absolute_exec_path, directory->d_name);
         command->binary_path = absolute_exec_path;
-        return true;
       }
     }
     closedir(directory_reader);
@@ -130,21 +131,15 @@ char * loadPathFromEnvironment() {
 }
 
 void parsePathEntries (char * pathString, char * pathDirs[MAXPATHDIRS]) {
-  for(int i = 0; i < MAXPATHDIRS; i++) {
-    pathDirs[i] = malloc(WORDBUFLENGTH);
-  }
   splitStr(pathString, pathDirs, MAXPATHDIRS, ':');
 }
 
-void findExecutablesInPath(struct executableWithArgs *command) {
-  char * pathDirs [MAXPATHDIRS]; 
-  char * path = loadPathFromEnvironment();
-  parsePathEntries(path, pathDirs);
-  bool found;
+void findExecutablesInPath(struct executableWithArgs *command, char * pathDirs [MAXPATHDIRS]) {
   struct executableWithArgs * currentCommand;
   currentCommand = command;
 
   while(currentCommand != NULL) {
+    printf("looking for cmd: %s\n",currentCommand->executable);
     for(int i = 0; i < MAXPATHDIRS; i++) {
       if(*pathDirs[i] != '\0' && command->executable != NULL) {
         findExecutable(command, pathDirs[i]); 
@@ -152,6 +147,9 @@ void findExecutablesInPath(struct executableWithArgs *command) {
     }
     currentCommand = currentCommand->next;
   }
+  /* for(int i = 0; i < MAXPATHDIRS; i++) { */
+  /*   free(pathDirs[i]); */
+  /* } */
 }
 
 void redirectOutputToFile(char * filePath){
@@ -171,8 +169,8 @@ void redirectOutputToFile(char * filePath){
   }
 }
 
-void allocExecutable(struct executableWithArgs * command) {
-  command = (struct executableWithArgs*) malloc(sizeof(struct executableWithArgs));
+struct executableWithArgs * allocExecutable(void) {
+  return (struct executableWithArgs*) malloc(sizeof(struct executableWithArgs));
 }
 
 void getExecutables(char * words[MAXWORDS], struct executableWithArgs *command) {
@@ -180,10 +178,10 @@ void getExecutables(char * words[MAXWORDS], struct executableWithArgs *command) 
   int k  = 1; // arg index
   bool inputRedirectionToggled = false;
   bool outputRedirectionToggled = false;
-  allocExecutable(command);
+  //currentCommand = allocExecutable();
   currentCommand->executable = strdup(words[0]);
   currentCommand->args[0] = strdup(words[0]);
-  command->next = NULL; 
+  currentCommand->next = NULL; 
   for(int i = 1; i < MAXWORDS-1; i++) {
     if(*words[i] != '\0') {
       switch(*words[i]) {
@@ -212,21 +210,22 @@ void getExecutables(char * words[MAXWORDS], struct executableWithArgs *command) 
           break;
         case('|'):
           i++; // skip word
-          allocExecutable(command->next); 
-          currentCommand = command->next;
-          command->executable = strdup(words[i]); //write next executable 
-          command->args[0] = strdup(words[i]);
-          command->next = NULL; 
+          printf("executable in word %s\n", words[i]);
+          currentCommand->next = allocExecutable(); 
+          currentCommand = currentCommand->next;
+          currentCommand->args[0] = strdup(words[i]);
+          currentCommand->executable = strdup(words[i]); //write next executable 
+          currentCommand->next = NULL; 
           k = 1; // reset arg index
           break;
         default: 
-          command->args[k] = strdup(words[i]);
+          currentCommand->args[k] = strdup(words[i]);
           k++;
           break;
       }
     }
     else {
-      command->args[k] = NULL;
+      currentCommand->args[k] = NULL;
     } 
   }
 } 
@@ -262,11 +261,11 @@ void freeExecutable(struct executableWithArgs * command) {
    }
 }
 
-void handleUserInput (char * words[MAXWORDS]) {
+void handleUserInput (char * words[MAXWORDS], char * pathDirs [MAXPATHDIRS]) {
   struct executableWithArgs command;
   getExecutables(words, &command);
   
-  findExecutablesInPath(&command);
+  findExecutablesInPath(&command, pathDirs);
   executeCommandChain(&command);
   freeExecutable(&command);
   cleanup();
@@ -278,11 +277,17 @@ int main() {
   for(int i = 0; i < MAXWORDS; i++) {
     words[i] = malloc(WORDBUFLENGTH);
   }
+  char * pathDirs [MAXPATHDIRS]; 
+  for(int i = 0; i < MAXPATHDIRS; i++) {
+    pathDirs[i] = malloc(WORDBUFLENGTH);
+  }
+  char * path = loadPathFromEnvironment();
+  parsePathEntries(path, pathDirs);
   saved_stdout = dup(STDOUT_FILENO);
   while(1) {
     printf("#");
     scanf("%[^\n]%*c", input);
     splitStr(input, words, MAXWORDS, ' ');
-    handleUserInput(words);
+    handleUserInput(words, pathDirs);
   }
 }

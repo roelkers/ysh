@@ -66,7 +66,7 @@ void executeCommandChain (struct executableWithArgs * command) {
     /* printf("executing command %s\n", command->executable); */
     /* printf("binary path %s\n", command->binary_path); */
     if(command->binary_path != NULL) {
-      executeCommand(*command);
+      executeCommand(*currentCommand);
     }
     currentCommand = currentCommand->next;
   }
@@ -104,7 +104,6 @@ void findExecutable (struct executableWithArgs* command, char * dir) {
   
     if (directory_reader == NULL) {
         perror("opendir");
-        printf("Could not open current directory" ); 
         exit(0);
     }
     while ((directory= readdir(directory_reader)) != NULL) {
@@ -140,10 +139,10 @@ void findExecutablesInPath(struct executableWithArgs *command, char * pathDirs [
   currentCommand = command;
 
   while(currentCommand != NULL) {
-    printf("looking for cmd: %s\n",currentCommand->executable);
+    /* printf("looking for cmd: %s\n",currentCommand->executable); */
     for(int i = 0; i < MAXPATHDIRS; i++) {
-      if(*pathDirs[i] != '\0' && command->executable != NULL) {
-        findExecutable(command, pathDirs[i]); 
+      if(*pathDirs[i] != '\0' && currentCommand->executable != NULL) {
+        findExecutable(currentCommand, pathDirs[i]); 
       }
     }
     currentCommand = currentCommand->next;
@@ -179,7 +178,6 @@ void getExecutables(char * words[MAXWORDS], struct executableWithArgs *command) 
   int k  = 1; // arg index
   bool inputRedirectionToggled = false;
   bool outputRedirectionToggled = false;
-  //currentCommand = allocExecutable();
   currentCommand->executable = strdup(words[0]);
   currentCommand->args[0] = strdup(words[0]);
   currentCommand->next = NULL; 

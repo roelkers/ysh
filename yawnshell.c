@@ -99,8 +99,6 @@ void executeCommand (struct executableWithArgs command) {
 }
 
 void findExecutable (struct executableWithArgs* command, char * dir) {
-    printf("dir: %s\n", dir);
-    /* printf("command: %s\n", command->executable); */
     struct dirent *directory;
     DIR *directory_reader = opendir(dir); 
   
@@ -111,10 +109,13 @@ void findExecutable (struct executableWithArgs* command, char * dir) {
     }
     while ((directory= readdir(directory_reader)) != NULL) {
       if(strcmp(directory->d_name, command->executable) == 0) {
-        char * absolute_exec_path = malloc(strlen(dir) + strlen(directory->d_name)+1);
-        strcat(absolute_exec_path, dir);
+        /* printf("dir: %s\n", dir); */
+        char * absolute_exec_path = malloc(WORDBUFLENGTH);
+        /* printf("absolute_exec_path: %s\n", absolute_exec_path); */
+        strcpy(absolute_exec_path, dir);
         strcat(absolute_exec_path, "/");
         strcat(absolute_exec_path, directory->d_name);
+        /* printf("absolute_exec_path: %s\n", absolute_exec_path); */
         command->binary_path = absolute_exec_path;
       }
     }
@@ -209,6 +210,7 @@ void getExecutables(char * words[MAXWORDS], struct executableWithArgs *command) 
           k++;
           break;
         case('|'):
+          currentCommand->args[k+1] = NULL; //finish args array
           i++; // skip word
           printf("executable in word %s\n", words[i]);
           currentCommand->next = allocExecutable(); 
@@ -267,7 +269,7 @@ void handleUserInput (char * words[MAXWORDS], char * pathDirs [MAXPATHDIRS]) {
   
   findExecutablesInPath(&command, pathDirs);
   executeCommandChain(&command);
-  freeExecutable(&command);
+  //freeExecutable(&command);
   cleanup();
 }
 
@@ -280,6 +282,9 @@ int main() {
   char * pathDirs [MAXPATHDIRS]; 
   for(int i = 0; i < MAXPATHDIRS; i++) {
     pathDirs[i] = malloc(WORDBUFLENGTH);
+  }
+  for(int i = 0; i < MAXPATHDIRS; i++) {
+    *pathDirs[i] = '\0';
   }
   char * path = loadPathFromEnvironment();
   parsePathEntries(path, pathDirs);

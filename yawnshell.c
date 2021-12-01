@@ -262,11 +262,11 @@ void freeExecutable(struct executableWithArgs * command) {
 }
 
 void handleUserInput (char * words[MAXWORDS], char * pathDirs [MAXPATHDIRS]) {
-  struct executableWithArgs command;
-  getExecutables(words, &command);
+  struct executableWithArgs *command = allocExecutable();
+  getExecutables(words, command);
   
-  findExecutablesInPath(&command, pathDirs);
-  executeCommandChain(&command);
+  findExecutablesInPath(command, pathDirs);
+  executeCommandChain(command);
   //freeExecutable(&command);
   cleanup();
 }

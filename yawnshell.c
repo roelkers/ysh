@@ -27,14 +27,17 @@ struct executableWithArgs {
   char * args[MAXWORDS]; 
   char * binary_path;
   struct executableWithArgs * next;
+  int pipeInFd;
+  int pipeOutFd;
 };
 
-int outFds[2];
+int pipeFds[2];
 int fileFd;
 int saved_stdout;
 
 void executeCommand (struct executableWithArgs);
 void freeExecutable(struct executableWithArgs *);
+void restoreStdout(void);
 
 void splitStr(char* input, char * words[MAXWORDS], int wordsSize, char separator) {
   for(int j = 0; j < wordsSize -1; j++) {
@@ -63,12 +66,38 @@ void executeCommandChain (struct executableWithArgs * command) {
   currentCommand = command;
 
   while(currentCommand != NULL) {
-    /* printf("executing command %s\n", command->executable); */
-    /* printf("binary path %s\n", command->binary_path); */
     if(command->binary_path != NULL) {
       executeCommand(*currentCommand);
     }
     currentCommand = currentCommand->next;
+  }
+}
+
+void pipeProcessInput(int fd) {
+  int closeStatus = close(STDIN_FILENO);
+  if(closeStatus == -1) {
+    perror("close");
+    exit(1);
+  }
+  int dup2Status = dup2(fd, STDIN_FILENO);
+  if(dup2Status < 0) {
+    printf("error while attempting to pipe process input\n");
+    perror("dup2");
+    exit(1);
+  }
+}
+
+void pipeProcessOutput(int fd) {
+  int closeStatus = close(STDOUT_FILENO);
+  if(closeStatus == -1) {
+    perror("close");
+    exit(1);
+  }
+  int dup2Status = dup2(fd, STDOUT_FILENO);
+  if(dup2Status < 0) {
+    printf("error while attempting to pipe process output\n");
+    perror("dup2");
+    exit(1);
   }
 }
 
@@ -82,6 +111,8 @@ void executeCommand (struct executableWithArgs command) {
   /* printf("executableWithArgs.args[1]:%s\n",command.args[1]); */
   /* printf("executableWithArgs.args[2]:%s\n",command.args[2]); */
   /* printf("executableWithArgs.args[3]:%s\n",command.args[3]); */
+  /* printf("command.pipeInFd:%i\n",command.pipeInFd); */
+  /* printf("command.pipeOutFd:%i\n",command.pipeOutFd); */
   pid = fork();
   if(pid < 0) {
     perror("Unable to create child process");
@@ -89,6 +120,12 @@ void executeCommand (struct executableWithArgs command) {
   }
   //only executes in child process
   if(pid == 0) { 
+    if(command.pipeOutFd != 0) {
+      pipeProcessOutput(command.pipeOutFd);
+    }
+    if(command.pipeInFd != 0) {
+      pipeProcessInput(command.pipeInFd);
+    }
     execve(command.binary_path, command.args, env);
     perror("execve");
   } 
@@ -108,13 +145,10 @@ void findExecutable (struct executableWithArgs* command, char * dir) {
     }
     while ((directory= readdir(directory_reader)) != NULL) {
       if(strcmp(directory->d_name, command->executable) == 0) {
-        /* printf("dir: %s\n", dir); */
         char * absolute_exec_path = malloc(WORDBUFLENGTH);
-        /* printf("absolute_exec_path: %s\n", absolute_exec_path); */
         strcpy(absolute_exec_path, dir);
         strcat(absolute_exec_path, "/");
         strcat(absolute_exec_path, directory->d_name);
-        /* printf("absolute_exec_path: %s\n", absolute_exec_path); */
         command->binary_path = absolute_exec_path;
       }
     }
@@ -139,7 +173,6 @@ void findExecutablesInPath(struct executableWithArgs *command, char * pathDirs [
   currentCommand = command;
 
   while(currentCommand != NULL) {
-    /* printf("looking for cmd: %s\n",currentCommand->executable); */
     for(int i = 0; i < MAXPATHDIRS; i++) {
       if(*pathDirs[i] != '\0' && currentCommand->executable != NULL) {
         findExecutable(currentCommand, pathDirs[i]); 
@@ -147,9 +180,6 @@ void findExecutablesInPath(struct executableWithArgs *command, char * pathDirs [
     }
     currentCommand = currentCommand->next;
   }
-  /* for(int i = 0; i < MAXPATHDIRS; i++) { */
-  /*   free(pathDirs[i]); */
-  /* } */
 }
 
 void redirectOutputToFile(char * filePath){
@@ -181,6 +211,8 @@ void getExecutables(char * words[MAXWORDS], struct executableWithArgs *command) 
   currentCommand->executable = strdup(words[0]);
   currentCommand->args[0] = strdup(words[0]);
   currentCommand->next = NULL; 
+  currentCommand->pipeInFd = 0;
+  currentCommand->pipeOutFd = 0;
   for(int i = 1; i < MAXWORDS-1; i++) {
     if(*words[i] != '\0') {
       switch(*words[i]) {
@@ -209,13 +241,22 @@ void getExecutables(char * words[MAXWORDS], struct executableWithArgs *command) 
           break;
         case('|'):
           currentCommand->args[k+1] = NULL; //finish args array
+          currentCommand->pipeOutFd = 0;
           i++; // skip word
-          printf("executable in word %s\n", words[i]);
           currentCommand->next = allocExecutable(); 
+
+          int status = pipe(pipeFds);
+          if(status == -1) {
+            perror("status");
+            exit(1);
+          }
+          command->next->pipeInFd = pipeFds[0];
+          command->pipeOutFd = pipeFds[1];
           currentCommand = currentCommand->next;
           currentCommand->args[0] = strdup(words[i]);
           currentCommand->executable = strdup(words[i]); //write next executable 
-          currentCommand->next = NULL; 
+          currentCommand->next = NULL;
+          currentCommand->pipeOutFd = 0;
           k = 1; // reset arg index
           break;
         default: 
@@ -240,11 +281,15 @@ void cleanup () {
     //close file
     close(fileFd);
     //reattach stdout
-    int dup2status = dup2(saved_stdout, STDOUT_FILENO);
-    if(dup2status < 0) {
-      perror("error restoring stdout.");
-      exit(1);
-    }
+    restoreStdout();
+  }
+}
+
+void restoreStdout() {
+  int dup2status = dup2(saved_stdout, STDOUT_FILENO);
+  if(dup2status < 0) {
+    perror("error restoring stdout.");
+    exit(1);
   }
 }
 
@@ -288,6 +333,9 @@ int main() {
   parsePathEntries(path, pathDirs);
   saved_stdout = dup(STDOUT_FILENO);
   while(1) {
+    for(int i = 0; i < MAXWORDS; i++) {
+      *words[i] = '\0';
+    }
     printf("#");
     scanf("%[^\n]%*c", input);
     splitStr(input, words, MAXWORDS, ' ');
